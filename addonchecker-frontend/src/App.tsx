@@ -50,6 +50,8 @@ function App() {
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false)
+  const [isLoadingFileContent, setIsLoadingFileContent] = useState(false)
+  const [fileContentError, setFileContentError] = useState<string | null>(null)
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -159,8 +161,14 @@ function App() {
   const handleViewDetails = async (issue: Issue) => {
     if (!scanResult) return
     
+    setIsLoadingFileContent(true)
+    setFileContentError(null)
+    
     try {
       const response = await fetch(`${API_BASE}/api/scan/${scanResult.scan_id}/file/${encodeURIComponent(issue.file)}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file content: ${response.status}`)
+      }
       const fileData = await response.json()
       
       setSelectedIssue(issue)
@@ -168,6 +176,9 @@ function App() {
       setIsCodeViewerOpen(true)
     } catch (error) {
       console.error('Failed to load file content:', error)
+      setFileContentError('ファイル内容の取得に失敗しました。バックエンドサーバーが起動していることを確認してください。')
+    } finally {
+      setIsLoadingFileContent(false)
     }
   }
 
@@ -390,7 +401,7 @@ function App() {
           </div>
         )}
 
-        {isCodeViewerOpen && selectedIssue && fileContent && (
+        {isCodeViewerOpen && selectedIssue && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl w-5/6 h-5/6 flex flex-col">
               <div className="flex items-center justify-between p-4 border-b">
@@ -399,28 +410,47 @@ function App() {
                   <p className="text-sm text-gray-600">{selectedIssue.title}</p>
                 </div>
                 <button
-                  onClick={() => setIsCodeViewerOpen(false)}
+                  onClick={() => {
+                    setIsCodeViewerOpen(false)
+                    setFileContentError(null)
+                  }}
                   className="p-1 hover:bg-gray-100 rounded"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex-1 overflow-auto">
-                <SyntaxHighlighter
-                  language={selectedIssue.file.endsWith('.js') ? 'javascript' : 'json'}
-                  style={github}
-                  showLineNumbers={true}
-                  wrapLines={true}
-                  lineProps={(lineNumber) => ({
-                    style: {
-                      backgroundColor: lineNumber === selectedIssue.line_number ? '#fff5f5' : 'transparent',
-                      borderLeft: lineNumber === selectedIssue.line_number ? '3px solid #ef4444' : 'none',
-                      paddingLeft: lineNumber === selectedIssue.line_number ? '8px' : '11px'
-                    }
-                  })}
-                >
-                  {fileContent}
-                </SyntaxHighlighter>
+                {isLoadingFileContent && (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-gray-600">ファイル内容を読み込み中...</div>
+                  </div>
+                )}
+                
+                {fileContentError && (
+                  <div className="p-4">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="text-red-800">{fileContentError}</div>
+                    </div>
+                  </div>
+                )}
+                
+                {!isLoadingFileContent && !fileContentError && fileContent && (
+                  <SyntaxHighlighter
+                    language={selectedIssue.file.endsWith('.js') ? 'javascript' : 'json'}
+                    style={github}
+                    showLineNumbers={true}
+                    wrapLines={true}
+                    lineProps={(lineNumber) => ({
+                      style: {
+                        backgroundColor: lineNumber === selectedIssue.line_number ? '#fff5f5' : 'transparent',
+                        borderLeft: lineNumber === selectedIssue.line_number ? '3px solid #ef4444' : 'none',
+                        paddingLeft: lineNumber === selectedIssue.line_number ? '8px' : '11px'
+                      }
+                    })}
+                  >
+                    {fileContent}
+                  </SyntaxHighlighter>
+                )}
               </div>
               <div className="p-4 border-t bg-gray-50">
                 <div className="flex items-start space-x-3">

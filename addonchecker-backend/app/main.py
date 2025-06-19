@@ -151,6 +151,10 @@ analyzer = SecurityAnalyzer()
 async def healthz():
     return {"status": "ok"}
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     if not file.filename:
