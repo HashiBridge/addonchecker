@@ -113,28 +113,35 @@ class SecurityAnalyzer:
     
     def analyze_javascript(self, js_content: str, filename: str) -> List[Dict[str, Any]]:
         issues = []
+        lines = js_content.split('\n')
         
-        if re.search(r'\.innerHTML\s*=', js_content):
-            issues.append({
-                "id": "ADDON_002",
-                "severity": "CRITICAL",
-                "title": self.rules["ADDON_002"]["name"],
-                "description": self.rules["ADDON_002"]["description"],
-                "category": self.rules["ADDON_002"]["category"],
-                "file": filename,
-                "recommendation": "textContentまたはcreateElementを使用してください"
-            })
+        for line_num, line in enumerate(lines, 1):
+            if re.search(r'\.innerHTML\s*=', line):
+                issues.append({
+                    "id": "ADDON_002",
+                    "severity": "CRITICAL",
+                    "title": self.rules["ADDON_002"]["name"],
+                    "description": self.rules["ADDON_002"]["description"],
+                    "category": self.rules["ADDON_002"]["category"],
+                    "file": filename,
+                    "line_number": line_num,
+                    "code_snippet": line.strip(),
+                    "recommendation": "textContentまたはcreateElementを使用してください"
+                })
         
-        if re.search(r'http://[^/]', js_content):
-            issues.append({
-                "id": "ADDON_003",
-                "severity": "MEDIUM",
-                "title": self.rules["ADDON_003"]["name"],
-                "description": self.rules["ADDON_003"]["description"],
-                "category": self.rules["ADDON_003"]["category"],
-                "file": filename,
-                "recommendation": "HTTPSを使用してください"
-            })
+        for line_num, line in enumerate(lines, 1):
+            if re.search(r'http://[^/]', line):
+                issues.append({
+                    "id": "ADDON_003",
+                    "severity": "MEDIUM",
+                    "title": self.rules["ADDON_003"]["name"],
+                    "description": self.rules["ADDON_003"]["description"],
+                    "category": self.rules["ADDON_003"]["category"],
+                    "file": filename,
+                    "line_number": line_num,
+                    "code_snippet": line.strip(),
+                    "recommendation": "HTTPSを使用してください"
+                })
         
         return issues
 
@@ -170,7 +177,8 @@ async def upload_file(file: UploadFile = File(...)):
             "progress": 0,
             "timestamp": datetime.now().isoformat(),
             "issues": [],
-            "summary": {"total_issues": 0, "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0, "success": 0}
+            "summary": {"total_issues": 0, "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0, "success": 0},
+            "file_contents": {}
         }
         
         asyncio.create_task(analyze_extension(scan_id, temp_file_path))
@@ -193,6 +201,7 @@ async def analyze_extension(scan_id: str, file_path: str):
             
             if 'manifest.json' in file_list:
                 manifest_content = zip_ref.read('manifest.json').decode('utf-8')
+                scan_results[scan_id]["file_contents"]["manifest.json"] = manifest_content
                 issues.extend(analyzer.analyze_manifest(manifest_content))
             
             scan_results[scan_id]["progress"] = 50
@@ -202,6 +211,7 @@ async def analyze_extension(scan_id: str, file_path: str):
             for js_file in js_files[:5]:  # Limit to first 5 JS files
                 try:
                     js_content = zip_ref.read(js_file).decode('utf-8')
+                    scan_results[scan_id]["file_contents"][js_file] = js_content
                     issues.extend(analyzer.analyze_javascript(js_content, js_file))
                 except:
                     continue
@@ -251,4 +261,24 @@ async def get_scan_progress(scan_id: str):
         "filename": result["filename"],
         "progress": result["progress"],
         "status": result["status"]
+    }
+
+@app.get("/api/scan/{scan_id}/file/{filename:path}")
+async def get_file_content(scan_id: str, filename: str):
+    if scan_id not in scan_results:
+        raise HTTPException(status_code=404, detail="スキャン結果が見つかりません")
+    
+    result = scan_results[scan_id]
+    if filename not in result.get("file_contents", {}):
+        raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+    
+    file_content = result["file_contents"][filename]
+    
+    file_issues = [issue for issue in result["issues"] if issue["file"] == filename]
+    
+    return {
+        "filename": filename,
+        "content": file_content,
+        "issues": file_issues,
+        "language": "javascript" if filename.endswith('.js') else "json"
     }
