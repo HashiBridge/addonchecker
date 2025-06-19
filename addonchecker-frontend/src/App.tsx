@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Upload, FileText, AlertCircle, CheckCircle, Info, X, Pause, Play } from 'lucide-react'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { github } from 'react-syntax-highlighter/dist/esm/styles/hljs'
 import './App.css'
 
 interface ScanResult {
@@ -30,6 +32,8 @@ interface Issue {
   category: string
   file: string
   recommendation: string
+  line_number?: number
+  code_snippet?: string
 }
 
 interface UploadProgress {
@@ -43,7 +47,9 @@ function App() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
-
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
+  const [fileContent, setFileContent] = useState<string | null>(null)
+  const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false)
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -148,6 +154,21 @@ function App() {
       ...prev,
       issues: prev.issues.filter(issue => issue.id !== issueId)
     } : null)
+  }
+
+  const handleViewDetails = async (issue: Issue) => {
+    if (!scanResult) return
+    
+    try {
+      const response = await fetch(`${API_BASE}/api/scan/${scanResult.scan_id}/file/${encodeURIComponent(issue.file)}`)
+      const fileData = await response.json()
+      
+      setSelectedIssue(issue)
+      setFileContent(fileData.content)
+      setIsCodeViewerOpen(true)
+    } catch (error) {
+      console.error('Failed to load file content:', error)
+    }
   }
 
   const getAlertColor = (severity: string) => {
@@ -345,7 +366,10 @@ function App() {
                   )}
                   
                   <div className="mt-3">
-                    <button className="text-blue-600 hover:text-blue-800 text-xs font-medium">
+                    <button 
+                      onClick={() => handleViewDetails(issue)}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                    >
                       詳細を見る
                     </button>
                   </div>
@@ -362,6 +386,58 @@ function App() {
               >
                 新しいファイルを診断
               </button>
+            </div>
+          </div>
+        )}
+
+        {isCodeViewerOpen && selectedIssue && fileContent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-5/6 h-5/6 flex flex-col">
+              <div className="flex items-center justify-between p-4 border-b">
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedIssue.file}</h3>
+                  <p className="text-sm text-gray-600">{selectedIssue.title}</p>
+                </div>
+                <button
+                  onClick={() => setIsCodeViewerOpen(false)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto">
+                <SyntaxHighlighter
+                  language={selectedIssue.file.endsWith('.js') ? 'javascript' : 'json'}
+                  style={github}
+                  showLineNumbers={true}
+                  wrapLines={true}
+                  lineProps={(lineNumber) => ({
+                    style: {
+                      backgroundColor: lineNumber === selectedIssue.line_number ? '#fff5f5' : 'transparent',
+                      borderLeft: lineNumber === selectedIssue.line_number ? '3px solid #ef4444' : 'none',
+                      paddingLeft: lineNumber === selectedIssue.line_number ? '8px' : '11px'
+                    }
+                  })}
+                >
+                  {fileContent}
+                </SyntaxHighlighter>
+              </div>
+              <div className="p-4 border-t bg-gray-50">
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{selectedIssue.description}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      <strong>推奨事項:</strong> {selectedIssue.recommendation}
+                    </p>
+                    {selectedIssue.line_number && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        行 {selectedIssue.line_number}: {selectedIssue.code_snippet}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
