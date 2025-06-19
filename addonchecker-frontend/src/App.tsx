@@ -43,9 +43,9 @@ function App() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
-  const [currentScanId, setCurrentScanId] = useState<string | null>(null)
 
-  const API_BASE = 'http://localhost:8000'
+
+  const API_BASE = 'https://app-ltrcxxcp.fly.dev'
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -95,7 +95,7 @@ function App() {
       }
 
       const result = await response.json()
-      setCurrentScanId(result.scan_id)
+
       
       setUploadProgress(prev => prev ? { ...prev, progress: 100, status: 'processing' } : null)
       
@@ -142,7 +142,6 @@ function App() {
   const handleCancel = () => {
     setUploadProgress(null)
     setScanResult(null)
-    setCurrentScanId(null)
   }
 
   const handleCloseAlert = (issueId: string) => {
@@ -359,7 +358,6 @@ function App() {
               <button
                 onClick={() => {
                   setScanResult(null)
-                  setCurrentScanId(null)
                 }}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
