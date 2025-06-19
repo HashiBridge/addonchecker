@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Upload, FileText, AlertCircle, CheckCircle, Info, X, Pause, Play } from 'lucide-react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { Upload, FileText, AlertCircle, CheckCircle, Info, X, Pause, Play, Loader2 } from 'lucide-react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { github } from 'react-syntax-highlighter/dist/esm/styles/hljs'
 import './App.css'
@@ -52,8 +52,40 @@ function App() {
   const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false)
   const [isLoadingFileContent, setIsLoadingFileContent] = useState(false)
   const [fileContentError, setFileContentError] = useState<string | null>(null)
+  const codeViewerRef = useRef<HTMLDivElement>(null)
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
+  useEffect(() => {
+    if (isCodeViewerOpen && selectedIssue && fileContent && !isLoadingFileContent && selectedIssue.line_number) {
+      console.log('Auto-scroll effect triggered:', {
+        isCodeViewerOpen,
+        selectedIssue: selectedIssue?.title,
+        hasFileContent: !!fileContent,
+        isLoadingFileContent,
+        lineNumber: selectedIssue.line_number
+      })
+      
+      const timer = setTimeout(() => {
+        const codeContainer = codeViewerRef.current
+        console.log('Code container ref:', codeContainer)
+        
+        if (codeContainer) {
+          const highlightedLine = codeContainer.querySelector(`[data-line-number="${selectedIssue.line_number}"]`)
+          console.log('Found highlighted line:', highlightedLine, 'for line number:', selectedIssue.line_number)
+          
+          if (highlightedLine) {
+            highlightedLine.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            console.log('Scrolled to highlighted line')
+          } else {
+            console.log('No element found with data-line-number:', selectedIssue.line_number)
+          }
+        }
+      }, 500)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [isCodeViewerOpen, selectedIssue, fileContent, isLoadingFileContent])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -213,6 +245,22 @@ function App() {
         return <Info className="w-5 h-5 text-blue-600" />
       default:
         return <Info className="w-5 h-5 text-gray-600" />
+    }
+  }
+
+  const handleLineNumberClick = (lineNumber: number) => {
+    console.log('Line number clicked:', lineNumber)
+    const codeContainer = codeViewerRef.current
+    console.log('Code container for line click:', codeContainer)
+    
+    if (codeContainer) {
+      const targetLine = codeContainer.querySelector(`[data-line-number="${lineNumber}"]`)
+      console.log('Target line found:', targetLine)
+      
+      if (targetLine) {
+        targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        console.log('Scrolled to line:', lineNumber)
+      }
     }
   }
 
@@ -422,7 +470,10 @@ function App() {
               <div className="flex-1 overflow-auto">
                 {isLoadingFileContent && (
                   <div className="flex items-center justify-center h-full">
-                    <div className="text-gray-600">ファイル内容を読み込み中...</div>
+                    <div className="flex items-center space-x-2 text-gray-600">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>ファイル内容を読み込み中...</span>
+                    </div>
                   </div>
                 )}
                 
@@ -435,21 +486,32 @@ function App() {
                 )}
                 
                 {!isLoadingFileContent && !fileContentError && fileContent && (
-                  <SyntaxHighlighter
-                    language={selectedIssue.file.endsWith('.js') ? 'javascript' : 'json'}
-                    style={github}
-                    showLineNumbers={true}
-                    wrapLines={true}
-                    lineProps={(lineNumber) => ({
-                      style: {
-                        backgroundColor: lineNumber === selectedIssue.line_number ? '#fff5f5' : 'transparent',
-                        borderLeft: lineNumber === selectedIssue.line_number ? '3px solid #ef4444' : 'none',
-                        paddingLeft: lineNumber === selectedIssue.line_number ? '8px' : '11px'
-                      }
-                    })}
-                  >
-                    {fileContent}
-                  </SyntaxHighlighter>
+                  <div ref={codeViewerRef} className="h-full overflow-auto">
+                    <SyntaxHighlighter
+                      language={selectedIssue.file.endsWith('.js') ? 'javascript' : 'json'}
+                      style={github}
+                      showLineNumbers={true}
+                      wrapLines={true}
+                      lineNumberStyle={{
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        paddingRight: '10px',
+                        color: '#6b7280'
+                      }}
+                      lineProps={(lineNumber) => ({
+                        'data-line-number': lineNumber,
+                        style: {
+                          backgroundColor: lineNumber === selectedIssue.line_number ? '#fff5f5' : 'transparent',
+                          borderLeft: lineNumber === selectedIssue.line_number ? '3px solid #ef4444' : 'none',
+                          paddingLeft: lineNumber === selectedIssue.line_number ? '8px' : '11px',
+                          cursor: 'default'
+                        },
+                        onClick: () => handleLineNumberClick(lineNumber)
+                      })}
+                    >
+                      {fileContent}
+                    </SyntaxHighlighter>
+                  </div>
                 )}
               </div>
               <div className="p-4 border-t bg-gray-50">
