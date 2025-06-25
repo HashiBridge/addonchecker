@@ -43,7 +43,7 @@ interface UploadProgress {
 }
 
 function App() {
-  const [isDragOver, setIsDragOver] = useState(false)
+
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
@@ -88,17 +88,14 @@ function App() {
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragOver(true)
   }, [])
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragOver(false)
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragOver(false)
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
       handleFileUpload(files[0])
