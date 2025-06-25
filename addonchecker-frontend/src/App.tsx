@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Upload, FileText, AlertCircle, CheckCircle, Info, X, Pause, Play, Loader2 } from 'lucide-react'
+import { Upload, FileText, AlertCircle, X, Pause, Play, Loader2 } from 'lucide-react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { github } from 'react-syntax-highlighter/dist/esm/styles/hljs'
-import './App.css'
 
 interface ScanResult {
   scan_id: string
@@ -44,7 +43,7 @@ interface UploadProgress {
 }
 
 function App() {
-  const [isDragOver, setIsDragOver] = useState(false)
+
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
@@ -89,17 +88,14 @@ function App() {
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragOver(true)
   }, [])
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragOver(false)
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragOver(false)
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
       handleFileUpload(files[0])
@@ -214,39 +210,9 @@ function App() {
     }
   }
 
-  const getAlertColor = (severity: string) => {
-    switch (severity.toLowerCase()) {
-      case 'critical':
-      case 'high':
-        return 'bg-red-50 border-red-200 text-red-800'
-      case 'medium':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-800'
-      case 'success':
-        return 'bg-green-50 border-green-200 text-green-800'
-      case 'info':
-      case 'low':
-        return 'bg-blue-50 border-blue-200 text-blue-800'
-      default:
-        return 'bg-gray-50 border-gray-200 text-gray-800'
-    }
-  }
 
-  const getAlertIcon = (severity: string) => {
-    switch (severity.toLowerCase()) {
-      case 'critical':
-      case 'high':
-        return <X className="w-5 h-5 text-red-600" />
-      case 'medium':
-        return <AlertCircle className="w-5 h-5 text-yellow-600" />
-      case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-600" />
-      case 'info':
-      case 'low':
-        return <Info className="w-5 h-5 text-blue-600" />
-      default:
-        return <Info className="w-5 h-5 text-gray-600" />
-    }
-  }
+
+
 
   const handleLineNumberClick = (lineNumber: number) => {
     console.log('Line number clicked:', lineNumber)
@@ -265,46 +231,39 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
+    <div>
+      <div>
+        <h1>
           Browser Extension Security Checker
         </h1>
 
         {!uploadProgress && !scanResult && (
-          <div className="bg-white rounded-lg shadow-lg p-8">
+          <div>
             <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
-                isDragOver
-                  ? 'border-blue-400 bg-blue-50'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <Upload className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-              <h2 className="text-xl font-semibold mb-2 text-gray-700">
+              <Upload />
+              <h2>
                 拡張機能ファイルをアップロード
               </h2>
-              <p className="text-gray-500 mb-4">
+              <p>
                 ファイルをドラッグ&ドロップするか、下のボタンでファイルを選択してください
               </p>
-              <p className="text-sm text-gray-400 mb-6">
+              <p>
                 対応形式: .crx, .xpi, .zip
               </p>
               <input
                 type="file"
                 accept=".crx,.xpi,.zip"
                 onChange={handleFileSelect}
-                className="hidden"
                 id="file-input"
               />
               <label
                 htmlFor="file-input"
-                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition-colors"
               >
-                <FileText className="w-5 h-5 mr-2" />
+                <FileText />
                 ファイルを選択
               </label>
             </div>
@@ -312,43 +271,40 @@ function App() {
         )}
 
         {uploadProgress && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Uploading Files</h3>
-                <div className="flex space-x-2">
+          <div>
+            <div>
+              <div>
+                <h3>Uploading Files</h3>
+                <div>
                   <button
                     onClick={handlePauseToggle}
-                    className="p-1 hover:bg-gray-100 rounded"
                   >
                     {uploadProgress.isPaused ? (
-                      <Play className="w-5 h-5 text-gray-600" />
+                      <Play />
                     ) : (
-                      <Pause className="w-5 h-5 text-gray-600" />
+                      <Pause />
                     )}
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="p-1 hover:bg-gray-100 rounded"
                   >
-                    <X className="w-5 h-5 text-gray-600" />
+                    <X />
                   </button>
                 </div>
               </div>
               
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
+              <div>
+                <p>
                   {uploadProgress.progress}% • {uploadProgress.filename}
                 </p>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div>
                   <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${uploadProgress.progress}%` }}
                   />
                 </div>
               </div>
               
-              <p className="text-xs text-gray-500">
+              <p>
                 {uploadProgress.status === 'uploading' && 'ファイルをアップロード中...'}
                 {uploadProgress.status === 'processing' && 'セキュリティ解析中...'}
                 {uploadProgress.status === 'error' && 'エラーが発生しました'}
@@ -358,32 +314,32 @@ function App() {
         )}
 
         {scanResult && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">診断結果サマリー</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <div>
+              <h2>診断結果サマリー</h2>
+              <div>
                 <div>
-                  <p className="text-sm text-gray-600">📁 ファイル名: {scanResult.filename}</p>
-                  <p className="text-sm text-gray-600">📅 診断日時: {new Date(scanResult.timestamp).toLocaleString('ja-JP')}</p>
-                  <p className="text-sm text-gray-600">📊 ファイルサイズ: {scanResult.file_size}</p>
+                  <p>📁 ファイル名: {scanResult.filename}</p>
+                  <p>📅 診断日時: {new Date(scanResult.timestamp).toLocaleString('ja-JP')}</p>
+                  <p>📊 ファイルサイズ: {scanResult.file_size}</p>
                 </div>
                 <div>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
+                  <div>
+                    <span>
                       🔴 Critical: {scanResult.summary.critical}件
                     </span>
-                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
+                    <span>
                       🟠 High: {scanResult.summary.high}件
                     </span>
-                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
+                    <span>
                       🟡 Medium: {scanResult.summary.medium}件
                     </span>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                    <span>
                       🔵 Low: {scanResult.summary.low}件
                     </span>
                   </div>
                   {scanResult.security_score !== undefined && (
-                    <p className="text-sm text-gray-600">
+                    <p>
                       📈 セキュリティスコア: {scanResult.security_score}/100
                     </p>
                   )}
@@ -391,43 +347,39 @@ function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
               {scanResult.issues.map((issue, index) => (
                 <div
                   key={`${issue.id}-${index}`}
-                  className={`border rounded-lg p-4 ${getAlertColor(issue.severity)}`}
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      {getAlertIcon(issue.severity)}
-                      <span className="font-medium">{issue.title}</span>
+                  <div>
+                    <div>
+                      <span>{issue.title}</span>
                     </div>
                     <button
                       onClick={() => handleCloseAlert(`${issue.id}-${index}`)}
-                      className="text-gray-400 hover:text-gray-600"
                     >
-                      <X className="w-4 h-4" />
+                      <X />
                     </button>
                   </div>
                   
-                  <p className="text-sm mb-2">{issue.description}</p>
+                  <p>{issue.description}</p>
                   
                   {issue.file && (
-                    <p className="text-xs text-gray-600 mb-2">
+                    <p>
                       ファイル: {issue.file}
                     </p>
                   )}
                   
                   {issue.recommendation && (
-                    <div className="mt-3 p-2 bg-white bg-opacity-50 rounded text-xs">
+                    <div>
                       <strong>推奨事項:</strong> {issue.recommendation}
                     </div>
                   )}
                   
-                  <div className="mt-3">
+                  <div>
                     <button 
                       onClick={() => handleViewDetails(issue)}
-                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
                     >
                       詳細を見る
                     </button>
@@ -436,12 +388,11 @@ function App() {
               ))}
             </div>
 
-            <div className="text-center">
+            <div>
               <button
                 onClick={() => {
                   setScanResult(null)
                 }}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 新しいファイルを診断
               </button>
@@ -450,54 +401,47 @@ function App() {
         )}
 
         {isCodeViewerOpen && selectedIssue && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-5/6 h-5/6 flex flex-col">
-              <div className="flex items-center justify-between p-4 border-b">
+          <div>
+            <div>
+              <div>
                 <div>
-                  <h3 className="text-lg font-semibold">{selectedIssue.file}</h3>
-                  <p className="text-sm text-gray-600">{selectedIssue.title}</p>
+                  <h3>{selectedIssue.file}</h3>
+                  <p>{selectedIssue.title}</p>
                 </div>
                 <button
                   onClick={() => {
                     setIsCodeViewerOpen(false)
                     setFileContentError(null)
                   }}
-                  className="p-1 hover:bg-gray-100 rounded"
                 >
-                  <X className="w-5 h-5" />
+                  <X />
                 </button>
               </div>
-              <div className="flex-1 overflow-auto">
+              <div>
                 {isLoadingFileContent && (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="flex items-center space-x-2 text-gray-600">
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                  <div>
+                    <div>
+                      <Loader2 />
                       <span>ファイル内容を読み込み中...</span>
                     </div>
                   </div>
                 )}
                 
                 {fileContentError && (
-                  <div className="p-4">
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <div className="text-red-800">{fileContentError}</div>
+                  <div>
+                    <div>
+                      <div>{fileContentError}</div>
                     </div>
                   </div>
                 )}
                 
                 {!isLoadingFileContent && !fileContentError && fileContent && (
-                  <div ref={codeViewerRef} className="h-full overflow-auto">
+                  <div ref={codeViewerRef}>
                     <SyntaxHighlighter
                       language={selectedIssue.file.endsWith('.js') ? 'javascript' : 'json'}
                       style={github}
                       showLineNumbers={true}
                       wrapLines={true}
-                      lineNumberStyle={{
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        paddingRight: '10px',
-                        color: '#6b7280'
-                      }}
                       lineProps={(lineNumber) => ({
                         'data-line-number': lineNumber,
                         style: {
@@ -514,16 +458,16 @@ function App() {
                   </div>
                 )}
               </div>
-              <div className="p-4 border-t bg-gray-50">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+              <div>
+                <div>
+                  <AlertCircle />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{selectedIssue.description}</p>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p>{selectedIssue.description}</p>
+                    <p>
                       <strong>推奨事項:</strong> {selectedIssue.recommendation}
                     </p>
                     {selectedIssue.line_number && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p>
                         行 {selectedIssue.line_number}: {selectedIssue.code_snippet}
                       </p>
                     )}
