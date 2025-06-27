@@ -2,6 +2,11 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { Upload, FileText, AlertCircle, X, Pause, Play, Loader2 } from 'lucide-react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { github } from 'react-syntax-highlighter/dist/esm/styles/hljs'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
+import { Badge } from '@/components/ui/badge'
 
 interface ScanResult {
   scan_id: string
@@ -231,208 +236,259 @@ function App() {
   }
 
   return (
-    <div>
-      <div>
-        <h1>
-          Browser Extension Security Checker
-        </h1>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="container mx-auto px-4 max-w-4xl">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-blue-900 mb-2">
+            Browser Extension Security Checker
+          </h1>
+          <p className="text-gray-600">
+            ブラウザ拡張機能のセキュリティ診断ツール
+          </p>
+        </div>
 
         {!uploadProgress && !scanResult && (
-          <div>
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              <Upload />
-              <h2>
-                拡張機能ファイルをアップロード
-              </h2>
-              <p>
-                ファイルをドラッグ&ドロップするか、下のボタンでファイルを選択してください
-              </p>
-              <p>
-                対応形式: .crx, .xpi, .zip
-              </p>
-              <input
-                type="file"
-                accept=".crx,.xpi,.zip"
-                onChange={handleFileSelect}
-                id="file-input"
-              />
-              <label
-                htmlFor="file-input"
+          <Card className="border-2 border-dashed border-blue-200 hover:border-blue-300 transition-colors">
+            <CardContent className="p-8">
+              <div
+                className="text-center cursor-pointer"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
               >
-                <FileText />
-                ファイルを選択
-              </label>
-            </div>
-          </div>
+                <Upload className="mx-auto h-12 w-12 text-blue-600 mb-4" />
+                <CardTitle className="text-xl text-blue-900 mb-2">
+                  拡張機能ファイルをアップロード
+                </CardTitle>
+                <CardDescription className="mb-4">
+                  ファイルをドラッグ&ドロップするか、下のボタンでファイルを選択してください
+                </CardDescription>
+                <CardDescription className="mb-6">
+                  対応形式: .crx, .xpi, .zip
+                </CardDescription>
+                <input
+                  type="file"
+                  accept=".crx,.xpi,.zip"
+                  onChange={handleFileSelect}
+                  id="file-input"
+                  className="hidden"
+                />
+                <Button asChild className="bg-blue-600 hover:bg-blue-700">
+                  <label htmlFor="file-input" className="cursor-pointer">
+                    <FileText className="mr-2 h-4 w-4" />
+                    ファイルを選択
+                  </label>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {uploadProgress && (
-          <div>
-            <div>
-              <div>
-                <h3>Uploading Files</h3>
-                <div>
-                  <button
+          <Card className="border-blue-200">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-blue-900">Uploading Files</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handlePauseToggle}
                   >
                     {uploadProgress.isPaused ? (
-                      <Play />
+                      <Play className="h-4 w-4" />
                     ) : (
-                      <Pause />
+                      <Pause className="h-4 w-4" />
                     )}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handleCancel}
                   >
-                    <X />
-                  </button>
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-              
-              <div>
-                <p>
-                  {uploadProgress.progress}% • {uploadProgress.filename}
-                </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
                 <div>
-                  <div
-                    style={{ width: `${uploadProgress.progress}%` }}
-                  />
+                  <p className="text-sm text-gray-600 mb-2">
+                    {uploadProgress.progress}% • {uploadProgress.filename}
+                  </p>
+                  <Progress value={uploadProgress.progress} className="h-2" />
                 </div>
+                <p className="text-sm text-blue-600">
+                  {uploadProgress.status === 'uploading' && 'ファイルをアップロード中...'}
+                  {uploadProgress.status === 'processing' && 'セキュリティ解析中...'}
+                  {uploadProgress.status === 'error' && 'エラーが発生しました'}
+                </p>
               </div>
-              
-              <p>
-                {uploadProgress.status === 'uploading' && 'ファイルをアップロード中...'}
-                {uploadProgress.status === 'processing' && 'セキュリティ解析中...'}
-                {uploadProgress.status === 'error' && 'エラーが発生しました'}
-              </p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
         {scanResult && (
-          <div>
-            <div>
-              <h2>診断結果サマリー</h2>
-              <div>
-                <div>
-                  <p>📁 ファイル名: {scanResult.filename}</p>
-                  <p>📅 診断日時: {new Date(scanResult.timestamp).toLocaleString('ja-JP')}</p>
-                  <p>📊 ファイルサイズ: {scanResult.file_size}</p>
-                </div>
-                <div>
-                  <div>
-                    <span>
-                      🔴 Critical: {scanResult.summary.critical}件
-                    </span>
-                    <span>
-                      🟠 High: {scanResult.summary.high}件
-                    </span>
-                    <span>
-                      🟡 Medium: {scanResult.summary.medium}件
-                    </span>
-                    <span>
-                      🔵 Low: {scanResult.summary.low}件
-                    </span>
-                  </div>
-                  {scanResult.security_score !== undefined && (
-                    <p>
-                      📈 セキュリティスコア: {scanResult.security_score}/100
+          <div className="space-y-6">
+            <Card className="border-blue-200">
+              <CardHeader>
+                <CardTitle className="text-blue-900">診断結果サマリー</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <p className="flex items-center text-sm">
+                      <span className="font-medium mr-2">📁 ファイル名:</span>
+                      {scanResult.filename}
                     </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              {scanResult.issues.map((issue, index) => (
-                <div
-                  key={`${issue.id}-${index}`}
-                >
-                  <div>
-                    <div>
-                      <span>{issue.title}</span>
+                    <p className="flex items-center text-sm">
+                      <span className="font-medium mr-2">📅 診断日時:</span>
+                      {new Date(scanResult.timestamp).toLocaleString('ja-JP')}
+                    </p>
+                    <p className="flex items-center text-sm">
+                      <span className="font-medium mr-2">📊 ファイルサイズ:</span>
+                      {scanResult.file_size}
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="destructive" className="bg-red-500">
+                        🔴 Critical: {scanResult.summary.critical}件
+                      </Badge>
+                      <Badge variant="destructive" className="bg-orange-500">
+                        🟠 High: {scanResult.summary.high}件
+                      </Badge>
+                      <Badge variant="secondary" className="bg-yellow-500 text-white">
+                        🟡 Medium: {scanResult.summary.medium}件
+                      </Badge>
+                      <Badge variant="secondary" className="bg-blue-500">
+                        🔵 Low: {scanResult.summary.low}件
+                      </Badge>
                     </div>
-                    <button
+                    {scanResult.security_score !== undefined && (
+                      <p className="text-sm font-medium">
+                        📈 セキュリティスコア: {scanResult.security_score}/100
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              {scanResult.issues.map((issue, index) => (
+                <Alert
+                  key={`${issue.id}-${index}`}
+                  variant={issue.severity === 'critical' || issue.severity === 'high' ? 'destructive' : 'default'}
+                  className={`border-l-4 ${
+                    issue.severity === 'critical' ? 'border-l-red-500 bg-red-50' :
+                    issue.severity === 'high' ? 'border-l-orange-500 bg-orange-50' :
+                    issue.severity === 'medium' ? 'border-l-yellow-500 bg-yellow-50' :
+                    'border-l-blue-500 bg-blue-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <AlertTitle className="flex items-center gap-2">
+                        <Badge variant="outline" className={
+                          issue.severity === 'critical' ? 'border-red-500 text-red-700' :
+                          issue.severity === 'high' ? 'border-orange-500 text-orange-700' :
+                          issue.severity === 'medium' ? 'border-yellow-500 text-yellow-700' :
+                          'border-blue-500 text-blue-700'
+                        }>
+                          {issue.severity.toUpperCase()}
+                        </Badge>
+                        {issue.title}
+                      </AlertTitle>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleCloseAlert(`${issue.id}-${index}`)}
                     >
-                      <X />
-                    </button>
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                   
-                  <p>{issue.description}</p>
+                  <AlertDescription className="mt-2">
+                    {issue.description}
+                  </AlertDescription>
                   
                   {issue.file && (
-                    <p>
+                    <p className="text-sm text-gray-600 mt-2">
                       ファイル: {issue.file}
                     </p>
                   )}
                   
                   {issue.recommendation && (
-                    <div>
+                    <div className="mt-3 p-3 bg-white rounded border">
                       <strong>推奨事項:</strong> {issue.recommendation}
                     </div>
                   )}
                   
-                  <div>
-                    <button 
+                  <div className="mt-3">
+                    <Button 
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleViewDetails(issue)}
                     >
                       詳細を見る
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </Alert>
               ))}
             </div>
 
-            <div>
-              <button
+            <div className="text-center">
+              <Button
+                variant="outline"
                 onClick={() => {
                   setScanResult(null)
                 }}
+                className="border-blue-600 text-blue-600 hover:bg-blue-50"
               >
                 新しいファイルを診断
-              </button>
+              </Button>
             </div>
           </div>
         )}
 
         {isCodeViewerOpen && selectedIssue && (
-          <div>
-            <div>
-              <div>
-                <div>
-                  <h3>{selectedIssue.file}</h3>
-                  <p>{selectedIssue.title}</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setIsCodeViewerOpen(false)
-                    setFileContentError(null)
-                  }}
-                >
-                  <X />
-                </button>
-              </div>
-              <div>
-                {isLoadingFileContent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <Card className="w-full max-w-6xl max-h-[90vh] overflow-hidden">
+              <CardHeader className="border-b">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div>
-                      <Loader2 />
+                    <CardTitle className="text-blue-900">{selectedIssue.file}</CardTitle>
+                    <CardDescription>{selectedIssue.title}</CardDescription>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setIsCodeViewerOpen(false)
+                      setFileContentError(null)
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0 overflow-auto max-h-[60vh]">
+                {isLoadingFileContent && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       <span>ファイル内容を読み込み中...</span>
                     </div>
                   </div>
                 )}
                 
                 {fileContentError && (
-                  <div>
-                    <div>
-                      <div>{fileContentError}</div>
-                    </div>
-                  </div>
+                  <Alert variant="destructive" className="m-4">
+                    <AlertDescription>{fileContentError}</AlertDescription>
+                  </Alert>
                 )}
                 
                 {!isLoadingFileContent && !fileContentError && fileContent && (
@@ -457,24 +513,24 @@ function App() {
                     </SyntaxHighlighter>
                   </div>
                 )}
-              </div>
-              <div>
-                <div>
-                  <AlertCircle />
-                  <div>
-                    <p>{selectedIssue.description}</p>
-                    <p>
+              </CardContent>
+              <CardFooter className="border-t bg-gray-50">
+                <Alert className="w-full">
+                  <AlertCircle className="h-4 w-4" />
+                  <div className="ml-2">
+                    <AlertDescription>{selectedIssue.description}</AlertDescription>
+                    <p className="mt-2">
                       <strong>推奨事項:</strong> {selectedIssue.recommendation}
                     </p>
                     {selectedIssue.line_number && (
-                      <p>
+                      <p className="mt-1 text-sm text-gray-600">
                         行 {selectedIssue.line_number}: {selectedIssue.code_snippet}
                       </p>
                     )}
                   </div>
-                </div>
-              </div>
-            </div>
+                </Alert>
+              </CardFooter>
+            </Card>
           </div>
         )}
       </div>
