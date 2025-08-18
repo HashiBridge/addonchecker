@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import JSZip from 'jszip'
+import { SecurityAnalyzer, SecurityIssue } from './SecurityAnalyzer'
 
 interface ScanResult {
   scan_id: string
@@ -26,6 +28,7 @@ interface ScanResult {
     success: number
   }
   security_score?: number
+  file_contents: Record<string, string>
 }
 
 interface Issue {
@@ -58,7 +61,6 @@ function App() {
   const [fileContentError, setFileContentError] = useState<string | null>(null)
   const codeViewerRef = useRef<HTMLDivElement>(null)
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
   useEffect(() => {
     if (isCodeViewerOpen && selectedIssue && fileContent && !isLoadingFileContent && selectedIssue.line_number) {
@@ -115,65 +117,90 @@ function App() {
   }, [])
 
   const handleFileUpload = async (file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
+    const allowedExtensions = ['.crx', '.xpi', '.zip'];
+    const fileExt = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    if (!allowedExtensions.includes(fileExt)) {
+      alert('サポートされていないファイル形式です');
+      return;
+    }
 
+    const scanId = `scan_${Date.now()}`;
+    
     setUploadProgress({
       filename: file.name,
       progress: 0,
       status: 'uploading',
       isPaused: false
-    })
+    });
 
     try {
-      const response = await fetch(`${API_BASE}/api/upload`, {
-        method: 'POST',
-        body: formData
-      })
-
-      if (!response.ok) {
-        throw new Error('Upload failed')
+      setUploadProgress(prev => prev ? { ...prev, progress: 25, status: 'processing' } : null);
+      
+      const arrayBuffer = await file.arrayBuffer();
+      const zip = new JSZip();
+      const zipContent = await zip.loadAsync(arrayBuffer);
+      
+      setUploadProgress(prev => prev ? { ...prev, progress: 50 } : null);
+      
+      const analyzer = new SecurityAnalyzer();
+      const issues: SecurityIssue[] = [];
+      const fileContents: Record<string, string> = {};
+      
+      if (zipContent.files['manifest.json']) {
+        const manifestContent = await zipContent.files['manifest.json'].async('text');
+        fileContents['manifest.json'] = manifestContent;
+        issues.push(...analyzer.analyzeManifest(manifestContent));
       }
-
-      const result = await response.json()
       
-      setUploadProgress(prev => prev ? { ...prev, progress: 100, status: 'processing' } : null)
+      setUploadProgress(prev => prev ? { ...prev, progress: 75 } : null);
       
-      pollProgress(result.scan_id)
+      const jsFiles = Object.keys(zipContent.files).filter(name => name.endsWith('.js')).slice(0, 5);
+      for (const jsFile of jsFiles) {
+        try {
+          const jsContent = await zipContent.files[jsFile].async('text');
+          fileContents[jsFile] = jsContent;
+          issues.push(...analyzer.analyzeJavaScript(jsContent, jsFile));
+        } catch (error) {
+          console.warn(`Failed to read ${jsFile}:`, error);
+        }
+      }
+      
+      const summary = {
+        total_issues: issues.length,
+        critical: issues.filter(i => i.severity.toLowerCase() === 'critical').length,
+        high: issues.filter(i => i.severity.toLowerCase() === 'high').length,
+        medium: issues.filter(i => i.severity.toLowerCase() === 'medium').length,
+        low: issues.filter(i => i.severity.toLowerCase() === 'low').length,
+        info: issues.filter(i => i.severity.toLowerCase() === 'info').length,
+        success: issues.filter(i => i.severity.toLowerCase() === 'success').length
+      };
+      
+      const securityScore = Math.max(0, 100 - (summary.critical * 25 + summary.high * 15 + summary.medium * 10 + summary.low * 5));
+      
+      setUploadProgress(prev => prev ? { ...prev, progress: 100 } : null);
+      
+      const scanResult = {
+        scan_id: scanId,
+        filename: file.name,
+        file_size: `${Math.round(file.size / 1024)}KB`,
+        status: 'completed',
+        progress: 100,
+        timestamp: new Date().toISOString(),
+        issues,
+        summary,
+        security_score: securityScore,
+        file_contents: fileContents
+      };
+      
+      setScanResult(scanResult);
+      setUploadProgress(null);
+      
     } catch (error) {
-      console.error('Upload error:', error)
-      setUploadProgress(prev => prev ? { ...prev, status: 'error' } : null)
+      console.error('File processing error:', error);
+      setUploadProgress(prev => prev ? { ...prev, status: 'error' } : null);
     }
   }
 
-  const pollProgress = async (scanId: string) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/scan/${scanId}/progress`)
-        const progress = await response.json()
-        
-        setUploadProgress(prev => prev ? {
-          ...prev,
-          progress: progress.progress,
-          status: progress.status
-        } : null)
-
-        if (progress.status === 'completed' || progress.status === 'error') {
-          clearInterval(pollInterval)
-          
-          if (progress.status === 'completed') {
-            const resultResponse = await fetch(`${API_BASE}/api/scan/${scanId}`)
-            const scanResult = await resultResponse.json()
-            setScanResult(scanResult)
-            setUploadProgress(null)
-          }
-        }
-      } catch (error) {
-        console.error('Progress polling error:', error)
-        clearInterval(pollInterval)
-      }
-    }, 1000)
-  }
 
   const handlePauseToggle = () => {
     setUploadProgress(prev => prev ? { ...prev, isPaused: !prev.isPaused } : null)
@@ -198,18 +225,17 @@ function App() {
     setFileContentError(null)
     
     try {
-      const response = await fetch(`${API_BASE}/api/scan/${scanResult.scan_id}/file/${encodeURIComponent(issue.file)}`)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file content: ${response.status}`)
+      const fileContent = scanResult.file_contents[issue.file];
+      if (!fileContent) {
+        throw new Error('File content not found');
       }
-      const fileData = await response.json()
       
       setSelectedIssue(issue)
-      setFileContent(fileData.content)
+      setFileContent(fileContent)
       setIsCodeViewerOpen(true)
     } catch (error) {
       console.error('Failed to load file content:', error)
-      setFileContentError('ファイル内容の取得に失敗しました。バックエンドサーバーが起動していることを確認してください。')
+      setFileContentError('ファイル内容の取得に失敗しました。')
     } finally {
       setIsLoadingFileContent(false)
     }
