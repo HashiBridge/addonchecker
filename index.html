@@ -1,14 +1,304 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/addonchecker/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>addonchecker-frontend</title>
-    <script type="module" crossorigin src="/addonchecker/assets/index-S7SD2vPX.js"></script>
-    <link rel="stylesheet" crossorigin href="/addonchecker/assets/index-CRVLlp1T.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>Browser Extension Security Checker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* --- 全体的なスタイル（最小限に絞り込み、Tailwindに移行） --- */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    /* --- プログレス・結果表示エリア（元からあるスタイルを維持） --- */
+   .progress > i { display:block; height:100%; background: linear-gradient(90deg,#6aa6ff,#3b8cff); width:0; transition: width.3s; }
+   .issue { border-left-width: 4px; padding: 0.5rem; margin: 0.5rem 0; background: rgba(255,255,255,0.6); border-radius: 6px; }
+   .issue.critical { border-left-color: #dc2626; }
+   .issue.high { border-left-color: #ef4444; }
+   .issue.medium { border-left-color: #f59e0b; }
+   .issue.info { border-left-color: #10b981; }
+   .success { border-left-color: #10b981; background: #ecfdf5; }
+   .info { border-left-color: #3b82f6; background: #eff6ff; }
+    pre { background:#f7f7f7; padding:10px; overflow:auto; border-radius:6px; }
+    button { border: none; }
+  </style>
+</head>
+<body class="bg-gray-50">
+
+  <div class="p-8 max-w-2xl mx-auto">
+    <div class="text-center">
+      <h1 class="text-[#283584] text-4xl font-extrabold mb-1">Browser Extension Security Checker</h1>
+      <p class="text-gray-500 text-lg">ブラウザ拡張機能のセキュリティ診断ツール</p>
+    </div>
+
+    <div class="file-upload-box mx-auto text-center text-gray-700 mt-8 p-8 border-2 border-dashed border-blue-200 rounded-2xl bg-white">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#3b82f6" class="w-16 h-16 mx-auto mb-4">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+      </svg>
+      <h3 class="text-xl font-semibold mb-2 text-gray-800">拡張機能ファイルをアップロード</h3>
+      <p class="text-sm mb-2">ファイルをドラッグ＆ドロップするか、下のボタンでファイルを選択してください</p>
+      <p class="text-xs text-gray-500 mb-6">対応形式:.xpi,.zip</p>
+      
+      <input id="fileInput" type="file" accept=".zip,.xpi" class="hidden" />
+      <button id="selectFileBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg shadow-md transition-colors duration-200 inline-flex items-center gap-2">
+         <span>ファイルを選択</span>
+      </button>
+    </div>
+
+    <div id="scanResults" class="hidden mt-8">
+      <div id="meta" class="text-sm text-gray-700 mb-2"></div>
+        <div class="progress w-full h-4 bg-gray-100 rounded overflow-hidden mb-3" style="display:none">
+         <i id="progressBar" class="block h-full bg-gradient-to-r from-blue-300 to-blue-600 w-0 transition-all"></i>
+       </div>
+       <div id="status" class="text-sm text-gray-600 mb-4"></div>
+
+       <h3 class="text-lg font-semibold mt-4 mb-2 text-zinc-950">問題点</h3>
+       <div id="issuesOut" class="mb-4"></div>
+
+       <button id="newScanBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg shadow-md transition-colors duration-200 inline-flex items-center gap-2 mt-4">
+          <span>新しいファイルを診断</span>
+       </button>
+     </div>
+  </div>
+
+  <script>
+    const rules = {
+      "ADDON_001": {name:"Excessive Permissions", severity:"HIGH", description:"拡張機能が不要な権限を要求しています", category:"Manifest Security"},
+      "ADDON_002": {name:"Unsafe innerHTML Usage", severity:"CRITICAL", description:"innerHTML使用によるXSS脆弱性の可能性", category:"Code Security"},
+      "ADDON_003": {name:"HTTP Communication", severity:"MEDIUM", description:"HTTP通信が検出されました。HTTPS使用を推奨します", category:"Communication Security"},
+      "ADDON_004": {name:"Proper CSP Configuration", severity:"SUCCESS", description:"Content Security Policyが適切に設定されています", category:"Security Configuration"},
+      "ADDON_005": {name:"Minimal Permissions", severity:"INFO", description:"権限設定を確認してください", category:"Best Practices"}
+    };
+
+    const fileInput = document.getElementById('fileInput');
+    const selectFileBtn = document.getElementById('selectFileBtn');
+    const newScanBtn = document.getElementById('newScanBtn');
+    const progressBar = document.getElementById('progressBar');
+    const statusDiv = document.getElementById('status');
+    const metaDiv = document.getElementById('meta');
+    const issuesOut = document.getElementById('issuesOut');
+    const uploadBox = document.querySelector('.file-upload-box');
+    const scanResults = document.getElementById('scanResults');
+
+    scanResults.classList.add('hidden');
+    uploadBox.classList.remove('hidden');
+
+    function updateProgress(pct, text) {
+      progressBar.style.width = pct + '%';
+      statusDiv.textContent = text || '';
+      document.querySelector('.progress').style.display = 'block';
+    }
+
+    function resetUI() {
+      progressBar.style.width = '0%';
+      document.querySelector('.progress').style.display = 'none';
+      statusDiv.textContent = '';
+      metaDiv.textContent = '';
+      issuesOut.innerHTML = '';
+    }
+
+    function arrayBufferToString(buf) {
+      try {
+        return new TextDecoder('utf-8').decode(buf);
+      } catch (e) {
+        let arr = new Uint8Array(buf);
+        let str = '';
+        for (let i = 0; i < arr.length; i++) str += String.fromCharCode(arr[i]);
+        return str;
+      }
+    }
+
+    function analyzeManifest(manifestContent) {
+      const issues = [];
+      try {
+        const manifest = JSON.parse(manifestContent);
+        const permissions = manifest.permissions || [];
+        if (permissions.includes("<all_urls>") || permissions.includes("tabs")) {
+          issues.push({
+            id:"ADDON_001", severity:"HIGH", title: rules["ADDON_001"].name, description: rules["ADDON_001"].description, category: rules["ADDON_001"].category, file:"manifest.json", recommendation: "必要最小限の権限のみを要求してください"
+          });
+        }
+        if (manifest.content_security_policy || manifest.contentSecurityPolicy) {
+          issues.push({
+            id:"ADDON_004", severity:"SUCCESS", title: rules["ADDON_004"].name, description: rules["ADDON_004"].description, category: rules["ADDON_004"].category, file:"manifest.json", recommendation: "CSPが適切に設定されています"
+          });
+        } else {
+          issues.push({
+            id:"ADDON_005", severity:"INFO", title: rules["ADDON_005"].name, description: "Content Security Policyの設定を検討してください", category: rules["ADDON_005"].category, file:"manifest.json", recommendation: "CSPを設定してセキュリティを向上させてください"
+          });
+        }
+      } catch (e) {
+        issues.push({
+          id: "ADDON_001", severity: "CRITICAL", title: "Invalid Manifest", description: "manifest.jsonの形式が正しくありません", category: "Manifest Security", file: "manifest.json", recommendation: "manifest.jsonの構文を確認してください"
+        });
+      }
+      return issues;
+    }
+
+    function analyzeJavascript(jsContent, filename) {
+      const issues = [];
+      const lines = jsContent.split(/\r?\n/);
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        if (/\.\s*innerHTML\s*=/.test(line)) {
+          issues.push({
+            id: "ADDON_002", severity: "CRITICAL", title: rules.ADDON_002.name, description: rules.ADDON_002.description, category: rules.ADDON_002.category, file: filename, line_number: i + 1, code_snippet: line.trim(), recommendation: "textContentまたはcreateElementを使用してください"
+          });
+        }
+      }
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        if (/http:\/\/[^\/\s"']/.test(line)) {
+          issues.push({
+            id: "ADDON_003", severity: "MEDIUM", title: rules.ADDON_003.name, description: rules.ADDON_003.description, category: rules.ADDON_003.category, file: filename, line_number: i + 1, code_snippet: line.trim(), recommendation: "HTTPSを使用してください"
+          });
+        }
+      }
+      return issues;
+    }
+
+    async function scanFile(file) {
+      resetUI();
+      uploadBox.classList.add('hidden');
+      scanResults.classList.remove('hidden');
+      
+      metaDiv.textContent = `Filename: ${file.name}  Size: ${Math.round(file.size/1024)}KB`;
+      updateProgress(5, 'Reading file...');
+      const ab = await file.arrayBuffer();
+      updateProgress(20, 'Loading zip...');
+      let zip;
+      try {
+        zip = await JSZip.loadAsync(ab);
+      } catch (e) {
+        updateProgress(100, 'ZIP読み込み失敗: ' + (e.message || e));
+        return;
+      }
+
+      updateProgress(25, 'Enumerating files...');
+      await new Promise(r => setTimeout(r, 200));
+      const fileNames = Object.keys(zip.files);
+      let issues = [];
+      const file_contents = {};
+
+      if (fileNames.includes('manifest.json')) {
+        updateProgress(35, 'Reading manifest.json...');
+        try {
+          const content = await zip.file('manifest.json').async('uint8array');
+          const s = arrayBufferToString(content);
+          file_contents['manifest.json'] = s;
+          issues = issues.concat(analyzeManifest(s));
+        } catch (e) {
+          issues.push({
+            id: "ADDON_001", severity: "CRITICAL", title: "Invalid Manifest", description: "manifest.jsonの読み取りに失敗しました", category: "Manifest Security", file: "manifest.json", recommendation: "manifest.json を確認してください"
+          });
+        }
+      } else {
+        issues.push({
+          id: "ADDON_001", severity: "CRITICAL", title: "Missing Manifest", description: "manifest.jsonが見つかりません", category: "Manifest Security", file: "manifest.json", recommendation: "拡張パッケージにmanifest.jsonを含めてください"
+        });
+      }
+
+      updateProgress(50, 'Searching JS files...');
+      await new Promise(r => setTimeout(r, 200));
+      const jsFiles = fileNames.filter(n => n.endsWith('.js'));
+      for (let i = 0; i < Math.min(jsFiles.length, 5); i++) {
+        const fname = jsFiles[i];
+        updateProgress(50 + Math.round((i+1) * (25 / Math.min(jsFiles.length,5))), `Parsing ${fname}...`);
+        try {
+          const content = await zip.file(fname).async('uint8array');
+          const s = arrayBufferToString(content);
+          file_contents[fname] = s;
+          const jsIssues = analyzeJavascript(s, fname);
+          issues = issues.concat(jsIssues);
+        } catch (e) {}
+        await new Promise(r => setTimeout(r, 150));
+      }
+
+      updateProgress(80, 'Aggregating results...');
+      await new Promise(r => setTimeout(r, 200));
+      const summary = { total_issues: issues.length, critical:0, high:0, medium:0, low:0, info:0, success:0 };
+      for (const issue of issues) {
+        const sev = (issue.severity || '').toLowerCase();
+        if (sev in summary) summary[sev] += 1;
+        else {
+          if (sev === 'critical') summary.critical++;
+          else if (sev === 'high') summary.high++;
+          else if (sev === 'medium') summary.medium++;
+          else if (sev === 'info') summary.info++;
+          else if (sev === 'success') summary.success++;
+        }
+      }
+      const score = Math.max(0, 100 - (summary.critical * 25 + summary.high * 15 + summary.medium * 10 + summary.low * 5));
+
+      const result = {
+        scan_id: 'client-' + (Math.random().toString(36).slice(2,10)), filename: file.name, file_size: `${Math.round(file.size/1024)}KB`, status: 'completed', progress: 100, timestamp: new Date().toISOString(), issues, summary, security_score: score
+      };
+
+      updateProgress(100, 'Completed');
+      renderResult(result);
+    }
+
+    function renderResult(result) {
+      issuesOut.innerHTML = '';
+      if (result.issues.length === 0) {
+        issuesOut.innerHTML = '<div class="success">No issues found</div>';
+      } else {
+        for (const issue of result.issues) {
+          const div = document.createElement('div');
+          const sevClass = issue.severity? issue.severity.toLowerCase() : '';
+          div.className = `issue ${sevClass} bg-white shadow-sm`;
+          div.innerHTML = `<strong>[${issue.severity}] ${escapeHtml(issue.title || issue.id)}</strong> <em>(${escapeHtml(issue.file)}${ issue.line_number? ':'+issue.line_number : ''})</em><div>${escapeHtml(issue.description || '')}</div><div style="font-size:0.9em;color:#666">${escapeHtml(issue.recommendation || '')}</div>`;
+          issuesOut.appendChild(div);
+        }
+      }
+    }
+
+    // イベントリスナー
+    selectFileBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const f = fileInput.files[0];
+      if (!f) return;
+      const fn = f.name.toLowerCase();
+      if (!(fn.endsWith('.zip') || fn.endsWith('.xpi'))) {
+        alert('サポートされていないファイル形式です（.xpi/.zip のみ）'); return;
+      }
+      await scanFile(f);
+    });
+
+    newScanBtn.addEventListener('click', () => {
+        scanResults.classList.add('hidden');
+        uploadBox.classList.remove('hidden');
+        resetUI();
+    });
+
+    uploadBox.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadBox.style.borderColor = '#60a5fa';
+    });
+    uploadBox.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      uploadBox.style.borderColor = '#dbeafe';
+    });
+    uploadBox.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      uploadBox.style.borderColor = '#dbeafe';
+      const f = e.dataTransfer.files[0];
+      if (f) {
+        const fn = f.name.toLowerCase();
+        if (!(fn.endsWith('.zip') || fn.endsWith('.xpi'))) {
+          alert('サポートされていないファイル形式です（.xpi/.zip のみ）');
+          return;
+        }
+        await scanFile(f);
+      }
+    });
+    function escapeHtml(s) {
+      if (!s) return '';
+      return s.replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]; });
+    }
+  </script>
+</body>
 </html>
